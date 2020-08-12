@@ -78,7 +78,7 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 			log("Waiting for process to stop...")
 			time.sleep(0.1)
 	elif stopmethod == "cgroup_freeze":
-		freeze_dir = "/sys/fs/cgroup/freezer/dlinject_" + os.urandom(8).hex()
+		freeze_dir = "/sys/fs/cgroup/freezer/shellinject_" + os.urandom(8).hex()
 		os.mkdir(freeze_dir)
 		with open(freeze_dir + "/tasks", "w") as task_file:
 			task_file.write(str(pid))
