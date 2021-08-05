@@ -263,7 +263,7 @@ def shellinject(pid, listen_port, stopmethod="sigstop"):
 		pop rbp
 		pop rdx
 		pop rcx
-		pop rdx
+		pop rbx
 		pop rax
 		popf
 		mov rsp, {rsp}
